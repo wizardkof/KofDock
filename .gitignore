@@ -1,0 +1,35 @@
+# Builds e artefatos gerados
+/build/
+/build-*/
+/cmake-build-*/
+/CMakeFiles/
+/CMakeCache.txt
+/Makefile
+/.cache/
+*.o
+*.obj
+*.so
+*.a
+*.dll
+*.exe
+*.AppImage
+*.log
+*.tmp
+*.bak
+*.swp
+*~
+# Editor e sistema
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+# Dependências locais
+node_modules/
+
+# Arquivos locais/sensíveis (não publicar)
+__pycache__/
+*.pyc
+.env
+.env.*
+*.pem
+*.key
