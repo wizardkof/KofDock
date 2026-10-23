@@ -4,6 +4,7 @@
 #include <QAbstractListModel>
 #include <QCoreApplication>
 #include <QTest>
+#include <QSignalSpy>
 #include <QUrl>
 #include <utility>
 
@@ -21,6 +22,10 @@ public:
         QString appId;
     };
     QList<Entry> entries;
+    QString closedUrl;
+    Q_INVOKABLE void requestClose(const QModelIndex &index) {
+        closedUrl = data(index, UrlRole).toString();
+    }
     QString preferredBrowser = QStringLiteral("applications:org.mozilla.firefox.desktop");
     QStringList seededLaunchers;
     QStringList launcherList() const { return seededLaunchers; }
@@ -56,6 +61,11 @@ public:
         entries.append(std::move(entry));
         endInsertRows();
     }
+    void removeAt(int row) {
+        beginRemoveRows({}, row, row);
+        entries.removeAt(row);
+        endRemoveRows();
+    }
     void replace(const QList<Entry> &updated) {
         beginResetModel();
         entries = updated;
@@ -80,6 +90,55 @@ public:
 class DockSectionTests : public QObject {
     Q_OBJECT
 private Q_SLOTS:
+    void mappingNotifiesWhenAnEarlierTaskDisappears() {
+        FakeTasks source;
+        source.append({"applications:pinned.desktop", false, true, false, false});
+        source.append({"applications:target.desktop", false, true, false, false});
+        DockSectionModel running;
+        running.setPinnedSection(false);
+        running.setLaunchers({"applications:pinned.desktop"});
+        running.setSourceModel(&source);
+        QCOMPARE(running.sourceRow(0), 1);
+        QSignalSpy changed(&running, &DockSectionModel::mappingChanged);
+        source.removeAt(0);
+        QTRY_VERIFY(!changed.isEmpty());
+        QCOMPARE(running.sourceRow(0), 0);
+        QCOMPARE(running.data(running.index(0, 0), FakeTasks::UrlRole).toString(),
+                 QStringLiteral("applications:target.desktop"));
+    }
+    void settingsAppIdMatchesPinnedDesktopFile() {
+        FakeTasks source;
+        source.append({"applications:org.kde.systemsettings.desktop", false, true,
+                       false, false, false, "org.kde.systemsettings"});
+        DockSectionModel running;
+        running.setPinnedSection(false);
+        running.setLaunchers({"applications:systemsettings.desktop"});
+        running.setSourceModel(&source);
+        QCOMPARE(running.count(), 0);
+        QCOMPARE(running.sourceRowForLauncher("applications:systemsettings.desktop"), 0);
+    }
+    void queuedCloseTracksItsWindowAcrossRowRemoval() {
+        FakeTasks source;
+        source.append({"applications:other.desktop", false, true, false, false});
+        source.append({"applications:target.desktop", false, true, false, false});
+        DockSectionModel running;
+        running.setSourceModel(&source);
+        running.requestCloseLater(1);
+        QVERIFY(source.closedUrl.isEmpty());
+        source.removeAt(0);
+        QTRY_COMPARE(source.closedUrl, QStringLiteral("applications:target.desktop"));
+    }
+    void queuedCloseIgnoresAnAlreadyRemovedWindow() {
+        FakeTasks source;
+        source.append({"applications:target.desktop", false, true, false, false});
+        source.append({"applications:other.desktop", false, true, false, false});
+        DockSectionModel running;
+        running.setSourceModel(&source);
+        running.requestCloseLater(0);
+        source.removeAt(0);
+        QCoreApplication::processEvents();
+        QVERIFY(source.closedUrl.isEmpty());
+    }
     void sectionsAreDisjoint() {
         FakeTasks source;
         source.append({"applications:a.desktop", true, false, false, false});

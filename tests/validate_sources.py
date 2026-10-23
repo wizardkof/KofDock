@@ -38,6 +38,9 @@ cmake = (root/'CMakeLists.txt').read_text()
 logic = (root/'qml/DockLogic.js').read_text()
 
 contracts = {
+    'main dock window rejects close requests from task actions':
+        re.search(r'onClosing:\s*close\s*=>\s*close\.accepted\s*=\s*false', main) and
+        'app.setQuitOnLastWindowClosed(false)' in app_main,
     'autostart toggle added under behavior preferences':
         'Iniciar KofDock ao entrar no KDE Plasma' in ui and
         'window.autostart.setEnabled(checked)' in ui and

@@ -6,6 +6,8 @@
 #include <QUrl>
 #include <QMetaObject>
 #include <QTimer>
+#include <QPersistentModelIndex>
+#include <QPointer>
 #include <limits>
 
 DockSectionModel::DockSectionModel(QObject *parent) : QSortFilterProxyModel(parent) {
@@ -48,6 +50,8 @@ void DockSectionModel::scheduleRunningOrderCapture() {
     QTimer::singleShot(0, this, [this]() {
         m_runningCaptureScheduled = false;
         if (sourceModel()) captureRunningOrder();
+        ++m_mappingRevision;
+        emit mappingChanged();
     });
 }
 
@@ -58,6 +62,10 @@ QString DockSectionModel::normalized(const QString &url) {
         while (suffix.startsWith(QLatin1Char('/'))) suffix.remove(0, 1);
         result = QStringLiteral("applications:") + suffix;
     }
+    // KDE's desktop file and Wayland app ID use these two names for the
+    // same System Settings application.
+    if (result == QStringLiteral("applications:org.kde.systemsettings.desktop"))
+        result = QStringLiteral("applications:systemsettings.desktop");
     return result;
 }
 
@@ -133,6 +141,16 @@ bool DockSectionModel::matchesLauncher(const QModelIndex &idx, const QString &ra
         ? normalized(sourceModel()->data(idx, primaryRole).toString()) : QString();
     const QString alternate = alternateRole >= 0
         ? normalized(sourceModel()->data(idx, alternateRole).toString()) : QString();
+    if (saved.startsWith(QStringLiteral("applications:"))) {
+        for (const char *role : {"AppId", "StorageId"}) {
+            const int number = roleNumber(role);
+            if (number < 0) continue;
+            QString id = sourceModel()->data(idx, number).toString().trimmed();
+            if (id.isEmpty()) continue;
+            if (!id.endsWith(QStringLiteral(".desktop"))) id += QStringLiteral(".desktop");
+            if (normalized(QStringLiteral("applications:") + id) == saved) return true;
+        }
+    }
     if ((!primary.isEmpty() && primary == saved) ||
         (!alternate.isEmpty() && alternate == saved)) return true;
 
@@ -338,4 +356,17 @@ void DockSectionModel::setStackLaunchers(const QStringList &urls) {
     invalidateFilter();
 #endif
     emit stackLaunchersChanged();
+}
+
+void DockSectionModel::requestCloseLater(int sourceRow) {
+    if (!sourceModel() || sourceRow < 0 || sourceRow >= sourceModel()->rowCount()) return;
+    const QPersistentModelIndex target(sourceModel()->index(sourceRow, 0));
+    const QPointer<QAbstractItemModel> model(sourceModel());
+    // Leave MenuItem.triggered before KDE can remove the delegate and its menu.
+    QTimer::singleShot(0, this, [model, target]() {
+        if (!model || !target.isValid()) return;
+        const QModelIndex index(target);
+        QMetaObject::invokeMethod(model, "requestClose", Qt::DirectConnection,
+                                  Q_ARG(QModelIndex, index));
+    });
 }

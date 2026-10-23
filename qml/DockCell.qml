@@ -279,9 +279,23 @@ Item {
     // last-used window; the full window list is only one submenu away.
     Menu {
         id: appMenu
-        popupType: Popup.Window
-        onOpened: cell.hostWindow.openMenus += 1
-        onClosed: cell.hostWindow.openMenus = Math.max(0, cell.hostWindow.openMenus - 1)
+        // Keep rendering in the persistent dock surface. A running task can
+        // disappear while its menu is closing; it must not own a native window.
+        popupType: Popup.Item
+        parent: cell.hostWindow.contentItem
+        onOpened: {
+            cell.hostWindow.openMenus += 1;
+            cell.hostWindow.activeAppMenu = appMenu;
+            cell.hostWindow.deferMask();
+        }
+        onClosed: {
+            cell.hostWindow.openMenus = Math.max(0, cell.hostWindow.openMenus - 1);
+            if (cell.hostWindow.activeAppMenu === appMenu)
+                cell.hostWindow.activeAppMenu = null;
+            cell.hostWindow.deferMask();
+        }
+        onXChanged: cell.hostWindow.deferMask()
+        onYChanged: cell.hostWindow.deferMask()
 
         Instantiator {
             model: cell.model.IsGroupParent ? 1 : 0
@@ -346,7 +360,7 @@ Item {
             visible: cell.model.IsWindow && !cell.model.IsGroupParent && cell.model.IsClosable
             enabled: visible
             onTriggered: if (cell.sourceRow >= 0)
-                cell.taskManagerModel.requestClose(cell.taskManagerModel.makeModelIndex(cell.sourceRow))
+                cell.hostWindow.closeTaskWindow(cell.sourceRow)
         }
         MenuSeparator {}
         MenuItem {

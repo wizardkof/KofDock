@@ -15,6 +15,9 @@ Window {
     flags: Qt.FramelessWindowHint | Qt.Window
     color: "transparent"
     title: "KofDock"
+    // The dock is a persistent layer surface. A task-menu "Close" request
+    // must never close this window if KDE briefly exposes it as a task.
+    onClosing: close => close.accepted = false
 
     // CRITICAL: a fixed full-screen-width layer surface. Zoom must not resize
     // or re-center the Wayland window; only the drawn icons/plate may animate.
@@ -31,6 +34,7 @@ Window {
     property real hoverPosition: -1
     property int hoveredIndex: -1
     property int openMenus: 0
+    property var activeAppMenu: null
     property string draggingUrl: ""
     property bool draggingWasPinned: false
     property real dropGuideX: -1
@@ -152,6 +156,7 @@ Window {
     // Resolve preferred://browser through the *same* KDE launcherPosition
     // contract used by the running-section filter. No inconsistent duplicates.
     function sourceRowForLauncher(launcherUrl) {
+        runningModel.mappingRevision;
         taskRefreshRevision; // refresh on KDE window lifecycle notifications
         return runningModel.sourceRowForLauncher(String(launcherUrl));
     }
@@ -444,6 +449,7 @@ Window {
             taskModel.requestToggleMinimized(idx);
         taskModel.requestActivate(idx);
     }
+    function closeTaskWindow(sourceRow) { runningModel.requestCloseLater(sourceRow); }
     function closeGroupWindow(sourceRow, childRow) {
         taskModel.requestClose(taskModel.makeModelIndex(sourceRow, childRow));
     }
@@ -644,6 +650,12 @@ Window {
                 const pt = fanPanel.mapToItem(entireArea, rect.x, rect.y);
                 regions.push(Qt.rect(pt.x, pt.y, rect.width, rect.height));
             }
+        }
+        if (activeAppMenu && activeAppMenu.visible) {
+            const menuPoint = activeAppMenu.parent.mapToItem(entireArea,
+                activeAppMenu.x, activeAppMenu.y);
+            regions.push(Qt.rect(menuPoint.x - 4, menuPoint.y - 4,
+                activeAppMenu.width + 8, activeAppMenu.height + 8));
         }
         dockController.setInputRegions(regions);
     }
@@ -882,7 +894,7 @@ Window {
                     settings: dockSettings
                     taskManagerModel: taskModel
                     rowHeight: dock.itemHeight
-                    sourceRow: runningModel.sourceRow(index)
+                    sourceRow: { runningModel.mappingRevision; return runningModel.sourceRow(index); }
                     dockIndex: visiblePinnedLaunchers.length + index
                     pinnedSection: false
                 }
