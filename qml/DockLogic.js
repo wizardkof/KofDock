@@ -366,15 +366,10 @@ function preservePinnedOrder(previous, incoming) {
     return output;
 }
 
-// When an unpinned running application appears, the favorites must NOT jump
-// left simply because the Row becomes wider. Anchor the pinned group and
-// expand to its right. On an empty favorites list, keep the dock centered.
+// Keep the full icon row centered as running apps are added or removed.
 function stableRowLeft(screenWidth, pinnedCount, slotWidth, spacing, totalWidth) {
     if (!Number.isFinite(screenWidth) || screenWidth <= 0) return 0;
-    const pinnedWidth = Math.max(0, pinnedCount * slotWidth +
-                                    Math.max(0, pinnedCount - 1) * spacing);
-    const left = pinnedWidth > 0 ? (screenWidth - pinnedWidth) / 2
-                                : (screenWidth - totalWidth) / 2;
+    const left = (screenWidth - Math.max(0, totalWidth)) / 2;
     return Math.max(4, Math.min(left, Math.max(4, screenWidth - totalWidth - 4)));
 }
 

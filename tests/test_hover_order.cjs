@@ -47,10 +47,12 @@ test('launcher URL suffix normalization prevents double entry',()=>{
 test('empty favorites preserve default centered running apps',()=>{
   assert.equal(stableRowLeft(1920,0,58,8,240), 840);
 });
-test('pinned icons do not move when unpinned running apps appear',()=>{
-  const fixed = stableRowLeft(1920,3,58,8,3*58+2*8);
-  for(const extra of [58,130,210,350]){
-    assert.equal(stableRowLeft(1920,3,58,8,3*58+2*8+extra), fixed);
+test('full icon row stays centered as unpinned running apps appear',()=>{
+  const center = 1920 / 2;
+  for(const extra of [0,58,130,210,350]){
+    const width = 3*58+2*8+extra;
+    const left = stableRowLeft(1920,3,58,8,width);
+    assert.equal(left + width/2, center);
   }
 });
 test('long rows stay inside screen bounds',()=>{
