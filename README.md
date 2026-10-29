@@ -25,6 +25,18 @@ bash scripts/install.sh
 
 O instalador compila, executa os testes disponíveis, verifica o carregamento do QML no Wayland e instala o aplicativo em `~/.local/bin/kofdock`. A inicialização automática pode ser ativada ou desativada nas preferências.
 
+## Better Blur DX
+
+O blur do KofDock é controlado pelo KWin. Para deixar o Better Blur DX ativo sem aplicar blur ao dock, configure o modo **Blur all except matching** e inclua estas classes na lista de exceções (**Window classes**):
+
+```text
+org.kof.KofDock
+kofdock
+KofDock
+```
+
+No `kwinrc`, isso corresponde a `BlurMatching=false`, `BlurNonMatching=true` e à chave `WindowClasses` dentro de `[Effect-better-blur-dx]`. O modo de exceção é necessário porque o Better Blur DX pode forçar blur em janelas; uma janela transparente como o KofDock pode mostrar esse efeito. As opções têm o nome **Blur all except matching** e **Window classes** nas configurações do efeito. Consulte também a [documentação do Better Blur DX](https://github.com/xarblu/kwin-effects-better-blur-dx).
+
 ## Executar
 
 ```bash
