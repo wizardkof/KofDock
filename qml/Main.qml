@@ -63,6 +63,19 @@ Window {
     property int taskRefreshRevision: 0
     property bool revealed: true
     property bool windowOverlapsDock: false
+    // The pointer handler has a deliberately expanded input envelope so the
+    // cursor can cross icon gaps smoothly. Only the rendered plate and row
+    // should keep an auto-hiding dock revealed; hovering that invisible
+    // envelope over a maximized window must not block hiding indefinitely.
+    readonly property bool pointerOnDockContent: {
+        if (!dockHover.hovered) return false;
+        const p = dockHover.point.position;
+        const onPlate = p.x >= plate.x && p.x <= plate.x + plate.width &&
+                        p.y >= plate.y && p.y <= plate.y + plate.height;
+        const onRow = p.x >= iconRow.x && p.x <= iconRow.x + iconRow.width &&
+                      p.y >= iconRow.y && p.y <= iconRow.y + iconRow.height;
+        return onPlate || onRow;
+    }
     readonly property int sidePadding: 14
     readonly property int peekHeight: 3
     readonly property int edgeTriggerHeight: 12
@@ -221,7 +234,7 @@ Window {
             console.info("KofDock: ocultação inteligente -> janela próxima=" + newOverlap +
                          ", tela=" + JSON.stringify(dockController.screenGeometry));
         windowOverlapsDock = newOverlap;
-        if (hideRequested && !dockHover.hovered && !anyMenuOpen && !draggingUrl) {
+        if (hideRequested && !pointerOnDockContent && !anyMenuOpen && !draggingUrl) {
             if (revealed && !hideTimer.running) hideTimer.restart();
         } else {
             hideTimer.stop();
@@ -701,11 +714,11 @@ Window {
     onTotalCellsChanged: { deferMask(); Qt.callLater(refreshVisibility); }
 
     onDraggingUrlChanged: {
-        if (!draggingUrl && hideRequested && !dockHover.hovered && !anyMenuOpen)
+        if (!draggingUrl && hideRequested && !pointerOnDockContent && !anyMenuOpen)
             hideTimer.restart();
     }
     onOpenMenusChanged: {
-        if (!anyMenuOpen && hideRequested && !dockHover.hovered)
+        if (!anyMenuOpen && hideRequested && !pointerOnDockContent)
             hideTimer.restart();
     }
     Component.onCompleted: { deferMask(); Qt.callLater(refreshVisibility); }
@@ -724,7 +737,7 @@ Window {
         repeat: false
         interval: dockSettings.hideDelay
         onTriggered: {
-            if (dock.hideRequested && !dockHover.hovered && !dock.anyMenuOpen && !dock.draggingUrl)
+            if (dock.hideRequested && !dock.pointerOnDockContent && !dock.anyMenuOpen && !dock.draggingUrl)
                 dock.revealed = false;
         }
     }
@@ -756,6 +769,10 @@ Window {
             // from the per-icon MouseAreas or the context menus.
             onPointChanged: {
                 if (!hovered) return;
+                if (dock.pointerOnDockContent) {
+                    hideTimer.stop();
+                    dock.revealed = true;
+                }
                 dock.reconcileFanAtPointer(point.position);
                 if (!dock.fanOpen ||
                     point.position.y >= iconRow.y + dock.itemHeight * 0.55)
@@ -763,8 +780,10 @@ Window {
             }
             onHoveredChanged: {
                 if (hovered) {
-                    hideTimer.stop();
-                    dock.revealed = true;
+                    if (dock.pointerOnDockContent) {
+                        hideTimer.stop();
+                        dock.revealed = true;
+                    }
                     dock.followCursor(point.position.x);
                 } else {
                     dock.hoverPosition = -1;
